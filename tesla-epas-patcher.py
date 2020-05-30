@@ -3,18 +3,21 @@ import argparse
 import os
 import sys
 import time
+import io
 import struct
 import hashlib
 import binascii
 from tqdm import tqdm
+from intelhex import IntelHex
 
 from panda import Panda
 from panda.uds import UdsClient, NegativeResponseError, MessageTimeoutError
-from panda.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE
+from panda.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
 
 FW_MD5SUM = 'cd66150b68fa09254e5a0a433abd9c8f' # md5sum of supported firmware
+BOOTLOADER_ADDR = 0x3FF7000
 FW_SIZE = 0x78000
-START_ADDR = 0x10000
+START_ADDR = 0x5E000
 END_ADDR = 0x67FFF
 
 def get_security_access_key(seed):
@@ -43,6 +46,42 @@ def get_security_access_key(seed):
   ])
 
   return key
+
+def wait(uds_client):
+  print("  wait .", end="")
+  prev_timeout = uds_client.timeout
+  uds_client.timeout = 0.1
+  for _ in range(10):
+    try:
+      uds_client.tester_present()
+      uds_client.timeout = prev_timeout
+      print("")
+      return
+    except MessageTimeoutError:
+      print(".", end="")
+  raise Exception("reboot failed!")
+
+def load_firmware_update(fw_update_file):
+  print('loading firmware update ...')
+  # the update file has multiple End Of File records (which is invalid)
+  # so we split the intel hex update file into multiple files
+  hex_strs = []
+  s = ""
+  with open(fw_update_file, 'r') as f:
+    for l in f.readlines():
+      s += l
+      # end of file record
+      if l.rstrip() == ':00000001FF':
+        hex_strs.append(s)
+        s = ""
+  assert len(hex_strs) > 0, 'firmware update file has no firmware!'
+
+  # IntelHex library doesn't like multiple Start Address records
+  # so we only load the boot loader since that is what we need
+  ih = IntelHex(io.StringIO(hex_strs[0]))
+  for s, e in ih.segments():
+    print(f'  {hex(s)}-{hex(e)}')
+  return ih
 
 def extract_firmware(uds_client, start_addr, size):
     print("start extended diagnostic session ...")
@@ -100,28 +139,10 @@ def patch_firmware(fw):
     fw = fw[:addr] + val + fw[addr+len(val):]
   return fw
 
-def flash_firmware(uds_client, fw, start_addr, end_addr):
-  fw_slice = fw[start_addr:end_addr+1]
-  slice_len = end_addr - start_addr + 1
-  start_and_length = struct.pack('>II', start_addr, slice_len)
-
+def flash_bootloader(uds_client, fw, bootloader_addr):
   print("start programming session ...")
   uds_client.diagnostic_session_control(SESSION_TYPE.PROGRAMMING)
-
-  print("  reboot .", end="")
-  reboot_done = False
-  prev_timeout = uds_client.timeout
-  uds_client.timeout = 0.1
-  for i in range(int(prev_timeout)):
-    try:
-      uds_client.tester_present()
-      reboot_done = True
-      break
-    except MessageTimeoutError:
-      print(".", end="")
-  print("")
-  assert reboot_done, "reboot failed!"
-  uds_client.timeout = prev_timeout
+  wait(uds_client)
 
   print("request security access seed ...")
   seed = uds_client.security_access(ACCESS_TYPE.REQUEST_SEED)
@@ -131,6 +152,39 @@ def flash_firmware(uds_client, fw, start_addr, end_addr):
   key = get_security_access_key(seed)
   print(f"  key: 0x{key.hex()}")
   uds_client.security_access(ACCESS_TYPE.SEND_KEY, key)
+
+  for start_addr, end_addr in fw.segments():
+    if start_addr < bootloader_addr:
+      continue
+
+    # note that end_addr is actually the end address + 1
+    fw_slice = fw.tobinstr(start_addr, end_addr-1)
+    slice_len = end_addr - start_addr
+
+    print("request download ...")
+    print(f"  start addr: {hex(start_addr)}")
+    print(f"  end addr: {hex(end_addr)}")
+    print(f"  data length: {hex(slice_len)}")
+    block_size = uds_client.request_download(start_addr, slice_len)
+
+    print("transfer data ...")
+    print(f"  block size: {block_size}")
+    chunk_size = block_size - 2
+    cnt = 0
+    for i in tqdm(range(0, slice_len, chunk_size)):
+      cnt += 1
+      uds_client.transfer_data(cnt & 0xFF, fw_slice[i:i+chunk_size])
+
+    print("request transfer exit ...")
+    uds_client.request_transfer_exit()
+
+  print("enter bootloader ...")
+  uds_client.routine_control(ROUTINE_CONTROL_TYPE.START, 0x0301, struct.pack(">I", bootloader_addr))
+
+def flash_firmware(uds_client, fw, start_addr, end_addr):
+  fw_slice = fw[start_addr:end_addr+1]
+  slice_len = end_addr - start_addr + 1
+  start_and_length = struct.pack('>II', start_addr, slice_len)
 
   print("erase memory ...")
   print(f"  start addr: {hex(start_addr)}")
@@ -155,13 +209,36 @@ def flash_firmware(uds_client, fw, start_addr, end_addr):
   print("request transfer exit ...")
   uds_client.request_transfer_exit()
 
+  print("reset ...")
+  wait(uds_client)
+  try:
+    uds_client.ecu_reset(RESET_TYPE.HARD | 0x80)
+  except MessageTimeoutError:
+    # supress response bit set, so timeout expected
+    # (timeout is used to wait for reboot to complete)
+    pass
+  wait(uds_client)
+
+  print("start extended diagnostic session ...")
+  uds_client.diagnostic_session_control(SESSION_TYPE.EXTENDED_DIAGNOSTIC)
+
+  print("request security access seed ...")
+  seed = uds_client.security_access(ACCESS_TYPE.REQUEST_SEED)
+  print(f"  seed: 0x{seed.hex()}")
+
+  print("send security access key ...")
+  key = get_security_access_key(seed)
+  print(f"  key: 0x{key.hex()}")
+  uds_client.security_access(ACCESS_TYPE.SEND_KEY, key)
+
   print("check dependencies ...")
-  uds_client.routine_control(ROUTINE_CONTROL_TYPE.START, ROUTINE_IDENTIFIER_TYPE.CHECK_PROGRAMMING_DEPENDENCIES, start_and_length)
+  uds_client.routine_control(ROUTINE_CONTROL_TYPE.START, 0xDC03)
 
   print("complete!")
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
+  parser.add_argument('firmware-update-file', nargs='?', help='firmware update file for EPAS')
   parser.add_argument('--extract-only', action='store_true', help='extract the firmware (do not flash)')
   parser.add_argument('--restore', action='store_true', help='flash firmware without modification')
   parser.add_argument('--debug', action='store_true', help='print additional debug messages')
@@ -169,9 +246,16 @@ if __name__ == "__main__":
   parser.add_argument('--can-bus', type=int, default=0, help='CAN bus number (zero based)')
   args = parser.parse_args()
 
+  fw_update_file = getattr(args, 'firmware-update-file')
+  if not fw_update_file and not args.extract_only:
+    parser.error('either firmware-update-file or --extract-only must be specified')
+
+  if fw_update_file:
+    fw_update = load_firmware_update(fw_update_file)
+
   panda = Panda()
   panda.set_safety_mode(Panda.SAFETY_ALLOUTPUT)
-  uds_client = UdsClient(panda, args.can_addr, bus=args.can_bus, timeout=10, debug=args.debug)
+  uds_client = UdsClient(panda, args.can_addr, bus=args.can_bus, timeout=1, debug=args.debug)
 
   os.chdir(os.path.dirname(os.path.realpath(__file__)))
   if args.extract_only or not os.path.exists(f"{FW_MD5SUM}.bin"):
@@ -181,8 +265,7 @@ if __name__ == "__main__":
     print(f"  file name: {fw_bin_fn}")
     with open(fw_bin_fn, "wb") as f:
       f.write(fw)
-    if args.extract_only:
-      sys.exit(0)
+
   else:
     fw_bin_fn = f'{FW_MD5SUM}.bin'
     print("load firmware ...")
@@ -204,4 +287,8 @@ if __name__ == "__main__":
     with open(fw_bin_mod_fn, "wb") as f:
       f.write(fw)
 
+  if args.extract_only:
+    sys.exit(0)
+
+  flash_bootloader(uds_client, fw_update, BOOTLOADER_ADDR)
   flash_firmware(uds_client, fw, START_ADDR, END_ADDR)

@@ -1,2 +1,3 @@
-pandacan>=0.0.9
-tqdm>=4.46.0
+pandacan==0.0.9
+tqdm==4.46.0
+intelhex==2.2.1
