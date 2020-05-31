@@ -14,7 +14,11 @@ from panda import Panda
 from panda.uds import UdsClient, NegativeResponseError, MessageTimeoutError
 from panda.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
 
-FW_MD5SUM = 'cd66150b68fa09254e5a0a433abd9c8f' # md5sum of supported firmware
+# md5sum of supported firmware
+FW_MD5SUMS = [
+  'cd66150b68fa09254e5a0a433abd9c8f',
+  '7c17b61ab0a760d5c8076a4e6b89c911',
+]
 BOOTLOADER_ADDR = 0x3FF7000
 FW_SIZE = 0x78000
 START_ADDR = 0x5E000
@@ -258,16 +262,21 @@ if __name__ == "__main__":
   uds_client = UdsClient(panda, args.can_addr, bus=args.can_bus, timeout=1, debug=args.debug)
 
   os.chdir(os.path.dirname(os.path.realpath(__file__)))
-  if args.extract_only or not os.path.exists(f"{FW_MD5SUM}.bin"):
+  for fw_md5sum in FW_MD5SUMS:
+    if os.path.exists(f"{fw_md5sum}.bin"):
+      break
+  else:
+    fw_md5sum = None
+
+  if args.extract_only or not fw_md5sum:
     fw = extract_firmware(uds_client, 0, FW_SIZE)
     md5 = hashlib.md5(fw).hexdigest()
     fw_bin_fn = f'{md5}.bin'
     print(f"  file name: {fw_bin_fn}")
     with open(fw_bin_fn, "wb") as f:
       f.write(fw)
-
   else:
-    fw_bin_fn = f'{FW_MD5SUM}.bin'
+    fw_bin_fn = f'{fw_md5sum}.bin'
     print("load firmware ...")
     print(f"  file name: {fw_bin_fn}")
     with open(fw_bin_fn, "rb") as f:
@@ -275,7 +284,7 @@ if __name__ == "__main__":
     md5 = hashlib.md5(fw).hexdigest()
 
   assert len(fw) == FW_SIZE, f'expected {FW_SIZE} bytes of firmware but got {len(fw)} bytes'
-  assert md5 == FW_MD5SUM, f'expected md5sum of firmware to be {FW_MD5SUM} but found {md5}'
+  assert md5 in FW_MD5SUMS, f'expected md5sum of firmware to be in {FW_MD5SUMS} but found {md5}'
   fw_bin_mod_fn = f'{md5}.modified.bin'
 
   if not args.restore:
