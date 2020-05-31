@@ -247,7 +247,7 @@ if __name__ == "__main__":
   parser.add_argument('--restore', action='store_true', help='flash firmware without modification')
   parser.add_argument('--debug', action='store_true', help='print additional debug messages')
   parser.add_argument('--can-addr', type=int, default=0x730, help='TX CAN address for UDS')
-  parser.add_argument('--can-bus', type=int, default=2, help='CAN bus number (zero based)')
+  parser.add_argument('--can-bus', type=int, default=0, help='CAN bus number (zero based)')
   args = parser.parse_args()
 
   fw_update_file = getattr(args, 'firmware-update-file')
