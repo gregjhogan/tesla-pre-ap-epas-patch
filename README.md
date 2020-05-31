@@ -16,7 +16,7 @@ This tool patches the firmware to enable steering over CAN.
 
 ## setup
 ```sh
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ## patch the firmware
