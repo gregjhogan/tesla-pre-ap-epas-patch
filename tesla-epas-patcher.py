@@ -131,10 +131,10 @@ def patch_firmware(fw):
   mods = [
     # hard-code EPB status (messsage not present on pre-AP since there is no ibooster)
     [0x031746, b'\x01'],
-    # extract CONTROL TYPE from POWER MODE (1 when driving)
-    [0x03188e, b'\x28'],
-    # extract LDW ENABLE from POWER MODE (1 when driving)
-    [0x031970, b'\x28'],
+    # replace GTW_epasControlType with DAS_steeringControlType
+    [0x03188e, b'\xdc'],
+    # replace GTW_epasLDWEnable with DAS_steeringControlType
+    [0x031970, b'\xdc'],
   ]
   for addr, val in mods:
     print(f"  {hex(addr)} : 0x{fw[addr:addr+len(val)].hex()} -> 0x{val.hex()}")
