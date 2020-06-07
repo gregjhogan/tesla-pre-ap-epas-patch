@@ -129,8 +129,6 @@ def update_checksums(fw):
 
 def patch_firmware(fw):
   mods = [
-    # hard-code EPB status (messsage not present on pre-AP since there is no ibooster)
-    [0x031746, b'\x01'],
     # replace GTW_epasControlType with DAS_steeringControlType
     [0x03188e, b'\xdc'],
     # replace GTW_epasLDWEnable with DAS_steeringControlType
