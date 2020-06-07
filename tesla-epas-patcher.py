@@ -21,8 +21,8 @@ FW_MD5SUMS = [
 ]
 BOOTLOADER_ADDR = 0x3FF7000
 FW_SIZE = 0x78000
-START_ADDR = 0x5E000
-END_ADDR = 0x67FFF
+START_ADDR = 0x7000
+END_ADDR = 0x45FFF
 
 def get_security_access_key(seed):
   key = 0xc541a9
@@ -129,14 +129,12 @@ def update_checksums(fw):
 
 def patch_firmware(fw):
   mods = [
-    # extract LDW ENABLE from LSB of POWER MODE (1 when driving)
-    [0x05e414, b'\xbf'],
-    [0x05e420, b'\x08'],
-    [0x05e421, b'\x03'],
-    # extract CONTROL TYPE from LSB of POWER MODE (1 when driving)
-    [0x05e450, b'\xbf'],
-    [0x05e45c, b'\x08'],
-    [0x05e45d, b'\x03'],
+    # hard-code EPB status (messsage not present on pre-AP since there is no ibooster)
+    [0x031746, b'\x01'],
+    # extract CONTROL TYPE from POWER MODE (1 when driving)
+    [0x03188e, b'\x28'],
+    # extract LDW ENABLE from POWER MODE (1 when driving)
+    [0x031970, b'\x28'],
   ]
   for addr, val in mods:
     print(f"  {hex(addr)} : 0x{fw[addr:addr+len(val)].hex()} -> 0x{val.hex()}")
