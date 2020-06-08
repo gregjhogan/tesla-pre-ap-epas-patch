@@ -38,17 +38,29 @@ connect [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle) to 
 where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
 
 ## how it works
-The gateway in pre-AP vehicles constantly sends an EPAS CONTROL message (CAN address 0x101) with two signals we care about:
-
-* LDW ENABLE (1 bit)
-  * 0 = DISABLE
-  * 1 = ENABLE
+The gateway in pre-AP vehicles constantly sends a GTW EPAS CONTROL message (CAN address 0x101) with two signals we care about:
 * CONTROL TYPE (3 bits)
   * 0 = INHIBIT
   * 1 = ANGLE
   * 2 = TORQUE
   * 3 = BOTH
+* LDW ENABLE (1 bit)
+  * 0 = DISABLE
+  * 1 = ENABLE
 
-The gateway in pre-AP vehicles sets these signals to have a value of 0 (disabled).
+(the gateway in pre-AP vehicles sets these signals to have a value of 0 - disabled)
 
-The firmware patch applied by this tool changes the EPAS CONTROL (CAN address 0x101) message parsing in the EPAS to extract the least significant bit of the POWER MODE signal in the same message instead (which is 1 while driving) for the above signals.  This enables angle based steering control by setting LDW ENABLE and CONTROL TYPE to have a value of 1 while driving.
+To control steering you need to send a DAS STEERING CONTROL message (CAN address 0x488) with two signals:
+* CONTROL TYPE (2 bits)
+  * 0 = DISABLE
+  * 1 = ENABLE
+* ANGLE REQUEST (15 bits)
+  * desired steering angle
+
+(other messages also need to be sent, but are not relavant to the firmware modifications)
+
+The firmware patch applied by this tool changes the gateway GTW EPAS CONTROL message parsing in the
+EPAS firmware to extract the CONTROL TYPE and LDW ENABLE signals from the DAS STEERING CONTROL
+message CONTROL TYPE signal instead.  This causes both signals in GTW EPAS CONTROL to have a value
+of 1 (enabling angle based steering over CAN) whenever the DAS STEERING CONTROL message indicates
+steering control should be enabled.
