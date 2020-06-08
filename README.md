@@ -3,14 +3,17 @@ Normally on pre-AP Tesla vehicles the gateway sends a message indicating that st
 
 This tool patches the firmware to enable steering over CAN.
 
-## usage notes
+## important - read this first!
 * flashing firmware can fail and brick your EPAS, while unlikely,  
   **do not flash something that you are not willing to pay to replace**
 * [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle)
   is used to communicate with EPAS over CAN
-* requires direct CAN bus communication line to EPAS (EPAS is not flashed through gateway)
+* make sure your panda has the latest firmware because older firmware would
+  [silently dropped TX messages](https://github.com/commaai/panda/pull/421) **which causes firmware flashing to fail**
+* requires connection the chassis CAN bus such that you are connected in parallel with the EPAS
+  (flashing does not happen through the gateway)
 * requires an EPAS firmware update file from Tesla because a secondary bootloader
-  is needed to flash the EPAS which is only available in the firmware update
+  is needed to flash the EPAS which is only available in the firmware update file
 * before flashing a backup of the firmware is take from the EPAS to ensure that
   the firmware on your EPAS is the expected firmware and compatible
 
