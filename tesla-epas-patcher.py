@@ -129,6 +129,8 @@ def update_checksums(fw):
 
 def patch_firmware(fw):
   mods = [
+    # force EPB_epasEACAllow to always be 1
+    [0x031746, b'\x01'],
     # replace GTW_epasControlType with DAS_steeringControlType
     [0x03188e, b'\xdc'],
     # replace GTW_epasLDWEnable with DAS_steeringControlType
