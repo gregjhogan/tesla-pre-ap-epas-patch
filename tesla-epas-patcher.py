@@ -11,8 +11,8 @@ from tqdm import tqdm
 from intelhex import IntelHex
 
 from panda import Panda
-from panda.uds import UdsClient, NegativeResponseError, MessageTimeoutError
-from panda.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
+from panda.python.uds import UdsClient, NegativeResponseError, MessageTimeoutError
+from panda.python.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
 
 # md5sum of supported firmware
 FW_MD5SUMS = [
