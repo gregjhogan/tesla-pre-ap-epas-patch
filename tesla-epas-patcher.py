@@ -129,12 +129,21 @@ def update_checksums(fw):
 
 def patch_firmware(fw):
   mods = [
-    # force EPB_epasEACAllow to always be 1
-    [0x031746, b'\x01'],
-    # replace GTW_epasControlType with DAS_steeringControlType
-    [0x03188e, b'\xdc'],
-    # replace GTW_epasLDWEnable with DAS_steeringControlType
-    [0x031970, b'\xdc'],
+    # set EPB_epasEACAllow = 1 (message must still be present on bus)
+    [0x031750, b'\x20'],
+    [0x031751, b'\x56'],
+    [0x031752, b'\x01'],
+    [0x031753, b'\x00'],
+    # set GTW_epasControlType = 1 (message must still be present on bus)
+    [0x031892, b'\x20'],
+    [0x031893, b'\x56'],
+    [0x031894, b'\x01'],
+    [0x031895, b'\x00'],
+    # set GTW_epasLDWEnable = 1 (message must still be present on bus)
+    [0x031974, b'\x20'],
+    [0x031975, b'\x56'],
+    [0x031976, b'\x01'],
+    [0x031977, b'\x00'],
   ]
   for addr, val in mods:
     print(f"  {hex(addr)} : 0x{fw[addr:addr+len(val)].hex()} -> 0x{val.hex()}")
