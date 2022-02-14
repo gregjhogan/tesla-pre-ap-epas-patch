@@ -2,7 +2,6 @@
 import argparse
 import os
 import sys
-import time
 import io
 import struct
 import hashlib
@@ -11,8 +10,8 @@ from tqdm import tqdm
 from intelhex import IntelHex
 
 from panda import Panda
-from panda.uds import UdsClient, NegativeResponseError, MessageTimeoutError
-from panda.uds import SESSION_TYPE, DATA_IDENTIFIER_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
+from panda.python.uds import UdsClient, MessageTimeoutError
+from panda.python.uds import SESSION_TYPE, ACCESS_TYPE, ROUTINE_CONTROL_TYPE, ROUTINE_IDENTIFIER_TYPE, RESET_TYPE
 
 # md5sum of supported firmware
 FW_MD5SUMS = [
@@ -129,14 +128,18 @@ def update_checksums(fw):
 
 def patch_firmware(fw):
   mods = [
-    # replace GTW_epasControlType with DAS_steeringControlType
-    [0x03188e, b'\xdc'],
-    # replace GTW_epasLDWEnable with DAS_steeringControlType
-    [0x031970, b'\xdc'],
+    # load 1 instead of extracting EPB_epasEACAllow (message must still be present on bus)
+    [0x031750, b"\x80\xff\x74\x2b", b"\x20\x56\x01\x00"],
+    # load 1 instead of extracting GTW_epasControlType (message must still be present on bus)
+    [0x031892, b"\x80\xff\x32\x2a", b"\x20\x56\x01\x00"],
+    # load 1 instead of extracting GTW_epasLDWEnable (message must still be present on bus)
+    [0x031974, b"\x80\xff\x50\x29", b"\x20\x56\x01\x00"],
   ]
-  for addr, val in mods:
-    print(f"  {hex(addr)} : 0x{fw[addr:addr+len(val)].hex()} -> 0x{val.hex()}")
-    fw = fw[:addr] + val + fw[addr+len(val):]
+  for addr, old_val, new_val in mods:
+    print(f"  {hex(addr)} : 0x{fw[addr:addr+len(old_val)].hex()} -> 0x{new_val.hex()}")
+    assert len(old_val) == len(new_val), f"{len(old_val)} != {len(new_val)}"
+    assert fw[addr:addr+len(old_val)] == old_val, f"0x{fw[addr:addr+len(old_val)].hex()} != 0x{old_val.hex()}"
+    fw = fw[:addr] + new_val + fw[addr+len(new_val):]
   return fw
 
 def flash_bootloader(uds_client, fw, bootloader_addr):

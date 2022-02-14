@@ -1,5 +1,5 @@
 # Tesla pre-AP EPAS steering firmware patch
-Normally on pre-AP Tesla vehicles the gateway sends a message indicating that steering over CAN is disabled.
+Normally on Tesla vehicles without autopilot the gateway sends a message indicating that steering over CAN is disabled.
 
 This tool patches the firmware to enable steering over CAN.
 
@@ -8,8 +8,6 @@ This tool patches the firmware to enable steering over CAN.
   **do not flash something that you are not willing to pay to replace**
 * [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle)
   is used to communicate with EPAS over CAN
-* make sure your panda has the latest firmware because older firmware would
-  [silently dropped TX messages](https://github.com/commaai/panda/pull/421) **which causes firmware flashing to fail**
 * requires connection the chassis CAN bus such that you are connected in parallel with the EPAS
   (flashing does not happen through the gateway)
 * requires an EPAS firmware update file from Tesla because a secondary bootloader
@@ -19,14 +17,18 @@ This tool patches the firmware to enable steering over CAN.
 
 ## setup
 ```sh
+# install python packages
 pip3 install -r requirements.txt
+# clone openpilot into home directory to get panda repo
+git clone https://github.com/commaai/openpilot.git ~/openpilot
 ```
 
 ## patch the firmware
 connect [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle) to EPAS and run:
 
 ```sh
-./tesla-epas-patcher.py /path/to/epas_combined.hex
+# replace PYTHONPATH with location you cloned openpilot to
+PYTHONPATH=~/openpilot ./tesla-epas-patcher.py /path/to/epas_combined.hex
 ```
 
 where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
@@ -35,35 +37,34 @@ where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
 connect [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle) to EPAS and run:
 
 ```sh
-./tesla-epas-patcher.py /path/to/epas_combined.hex --restore
+# replace PYTHONPATH with location you cloned openpilot to
+PYTHONPATH=~/openpilot ./tesla-epas-patcher.py /path/to/epas_combined.hex --restore
 ```
 
 where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
 
 ## how it works
-The gateway in pre-AP vehicles constantly sends a GTW EPAS CONTROL message (CAN address 0x101) with two signals we care about:
-* CONTROL TYPE (3 bits)
+The gateway in vehicles without autopilot constantly sends a `GTW_epasControl` message
+(CAN address 0x101) with two signals we care about:
+* `GTW_epasControlType` (3 bits)
   * 0 = INHIBIT
   * 1 = ANGLE
   * 2 = TORQUE
   * 3 = BOTH
-* LDW ENABLE (1 bit)
+* `GTW_epasLDWEnable` (1 bit)
   * 0 = DISABLE
   * 1 = ENABLE
+(the gateway in vehicles without autopilot sets these signals to have a value of 0)
 
-(the gateway in pre-AP vehicles sets these signals to have a value of 0 - disabled)
-
-To control steering you need to send a DAS STEERING CONTROL message (CAN address 0x488) with two signals:
-* CONTROL TYPE (2 bits)
+The electronic parking brake in vehicles without autopilot constantly sends a `EPB_epasControl`
+message (CAN address 0x214) with one signal we care about:
+* EPB_epasEACAllow (3 bits)
   * 0 = DISABLE
   * 1 = ENABLE
-* ANGLE REQUEST (15 bits)
-  * desired steering angle
+(the electronic parking brake in vehicles without autopilot sets this signal to have a value of 0)
 
-(other messages also need to be sent, but are not relavant to the firmware modifications)
+The firmware patch replaces parsing these signals with loading the value 1
+(after the checksum is validated).
 
-The firmware patch applied by this tool changes the gateway GTW EPAS CONTROL message parsing in the
-EPAS firmware to extract the CONTROL TYPE and LDW ENABLE signals from the DAS STEERING CONTROL
-message CONTROL TYPE signal instead.  This causes both signals in GTW EPAS CONTROL to have a value
-of 1 (enabling angle based steering over CAN) whenever the DAS STEERING CONTROL message indicates
-steering control should be enabled.
+Note that if you have no electronic parking brake you still need to send `EPB_epasControl` with
+a good checksum and counter to prevent the EPAS from faulting.
