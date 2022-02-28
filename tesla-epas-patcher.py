@@ -84,6 +84,7 @@ def load_firmware_update(fw_update_file):
   ih = IntelHex(io.StringIO(hex_strs[0]))
   for s, e in ih.segments():
     print(f'  {hex(s)}-{hex(e)}')
+  ih.write_hex_file("./bootloader.hex")
   return ih
 
 def extract_firmware(uds_client, start_addr, size):
