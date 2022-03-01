@@ -8,10 +8,8 @@ This tool patches the firmware to enable steering over CAN.
   **do not flash something that you are not willing to pay to replace**
 * [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle)
   is used to communicate with EPAS over CAN
-* requires connection the chassis CAN bus such that you are connected in parallel with the EPAS
+* requires connection the chassis CAN bus such that you are connected in parallel with the EPAopenpilotS
   (flashing does not happen through the gateway)
-* requires an EPAS firmware update file from Tesla because a secondary bootloader
-  is needed to flash the EPAS which is only available in the firmware update file
 * before flashing a backup of the firmware is take from the EPAS to ensure that
   the firmware on your EPAS is the expected firmware and compatible
 
@@ -28,20 +26,16 @@ connect [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle) to 
 
 ```sh
 # replace PYTHONPATH with location you cloned openpilot to
-PYTHONPATH=~/openpilot ./tesla-epas-patcher.py /path/to/epas_combined.hex
+PYTHONPATH=~/openpilot ./patch.py
 ```
-
-where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
 
 ## restore original firmware
 connect [comma.ai panda](https://comma.ai/shop/products/panda-obd-ii-dongle) to EPAS and run:
 
 ```sh
 # replace PYTHONPATH with location you cloned openpilot to
-PYTHONPATH=~/openpilot ./tesla-epas-patcher.py /path/to/epas_combined.hex --restore
+PYTHONPATH=~/openpilot ./patch.py --restore
 ```
-
-where `/path/to/epas_combined.hex` is a EPAS firmware update file from Tesla
 
 ## how it works
 The gateway in vehicles without autopilot constantly sends a `GTW_epasControl` message
