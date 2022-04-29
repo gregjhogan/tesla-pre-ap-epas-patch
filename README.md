@@ -48,6 +48,7 @@ The gateway in vehicles without autopilot constantly sends a `GTW_epasControl` m
 * `GTW_epasLDWEnable` (1 bit)
   * 0 = DISABLE
   * 1 = ENABLE
+
 (the gateway in vehicles without autopilot sets these signals to have a value of 0)
 
 The electronic parking brake in vehicles without autopilot constantly sends a `EPB_epasControl`
@@ -55,6 +56,7 @@ message (CAN address 0x214) with one signal we care about:
 * EPB_epasEACAllow (3 bits)
   * 0 = DISABLE
   * 1 = ENABLE
+
 (the electronic parking brake in vehicles without autopilot sets this signal to have a value of 0)
 
 The firmware patch replaces parsing these signals with loading the value 1
